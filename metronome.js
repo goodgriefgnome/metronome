@@ -1,16 +1,19 @@
 function Metronome() {
   this.bpm = 60;
-  this.beepPattern = [{
+  this.beepParams = {
     gain: 0.5,
     frequency: 440,
-    duration: 0.02,
-  }];
+    duration: 0.04,
+  };
   
+  // A list of modifier functions that operate on a copy of this.beepParams.
+  this.beepModifiers = [function(beep) {}];
+
   this._context = null;
   this._gain = null;
   this._osc = null;
   this._queuedTime = null;
-  this._patternIndex = 0;
+  this._modifierIndex = 0;
 }
 
 Metronome.prototype.start = function() {
@@ -27,7 +30,7 @@ Metronome.prototype.start = function() {
   this._gain.gain.value = 0;
   this._osc.start();
   this._queuedTime = this._context.currentTime;
-  this._patternIndex = 0;
+  this._modifierIndex = -1;
   this._queueEvents();
 }
 
@@ -51,14 +54,15 @@ Metronome.prototype._queueEvents = function() {
   while (this._queuedTime < target) {
     this._queuedTime += beatDuration;
     
-    var pattern = this.beepPattern[this._patternIndex];
-    this._patternIndex = (this._patternIndex + 1) % this.beepPattern.length;
-    
-    this._osc.frequency.setValueAtTime(pattern.frequency, this._queuedTime);
+    var beep = Object.create(this.beepParams);
+    this._modifierIndex = (this._modifierIndex + 1) % this.beepModifiers.length;
+    this.beepModifiers[this._modifierIndex](beep);
 
-    var duration = Math.min(pattern.duration, kMaxBeepDuration);
+    this._osc.frequency.setValueAtTime(beep.frequency, this._queuedTime);
+
+    var duration = Math.min(beep.duration, kMaxBeepDuration);
     var tau = duration / 5.0;
-    this._gain.gain.setTargetAtTime(pattern.gain, this._queuedTime, tau);
+    this._gain.gain.setTargetAtTime(beep.gain, this._queuedTime, tau);
     this._gain.gain.setTargetAtTime(0, this._queuedTime + duration, tau);
   }
   
